@@ -1,3 +1,12 @@
-PORT = 5000;
-MONGODB_URI = your_mongodb_connection_string;
-JWT_SECRET = your_jwt_secret;
+class AppError extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+    this.status = `${statusCode}`.startsWith("4") ? "fail" : "error";
+    this.isOperational = true;
+
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+export { AppError };
