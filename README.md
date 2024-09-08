@@ -39,15 +39,6 @@ This is the backend for a Calendly clone application built with Node.js, Express
    JWT_SECRET=your_jwt_secret
    ```
 
-4. Build the TypeScript code:
-   ```
-   npm run build
-   ```
-   or
-   ```
-   yarn build
-   ```
-
 5. Start the server:
    ```
    npm start
