@@ -19,8 +19,8 @@ This is the backend for a Calendly clone application built with Node.js, Express
 
 1. Clone the repository:
    ```
-   git clone https://github.com/your-username/calendly-clone-backend.git
-   cd calendly-clone-backend
+   git clone https://github.com/your-username/appointify-server.git
+   cd appointify-server
    ```
 
 2. Install dependencies:
