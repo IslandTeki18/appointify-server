@@ -1,11 +1,11 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
-import { errorMiddleware } from "./middleware/error.middleware";
-import authRoutes from "./routes/auth.routes";
-import eventTypeRoutes from "./routes/eventType.routes";
-import appointmentRoutes from "./routes/appointment.routes";
-import userRoutes from "./routes/user.routes";
+import { errorMiddleware } from "./src/middleware/error.middleware.js";
+import authRoutes from "./src/routes/auth.routes.js";
+import eventTypeRoutes from "./src/routes/eventType.routes.js";
+import appointmentRoutes from "./src/routes/appointment.routes.js";
+import userRoutes from "./src/routes/user.routes.js";
 import connectDB from "./src/config/database.js";
 
 dotenv.config();
