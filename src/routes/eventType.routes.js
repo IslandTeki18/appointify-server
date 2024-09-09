@@ -5,9 +5,9 @@ import {
   getEventType,
   updateEventType,
   deleteEventType,
-} from "../controllers/eventType.controller";
-import { validateEventType } from "../validators/eventType.validator";
-import { authenticate } from "../middlewares/auth.middleware";
+} from "../services/eventType.service.js";
+import { validateEventType } from "../middleware/validation.middleware.js";
+import { authenticate } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 

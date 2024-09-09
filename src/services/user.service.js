@@ -1,5 +1,5 @@
-import User from "../models/user.model";
-import { AppError } from "../utils/AppError";
+import { User } from "../models/User.js";
+import { AppError } from "../utils/AppError.js";
 
 const getUserProfile = async (req, res) => {
   try {

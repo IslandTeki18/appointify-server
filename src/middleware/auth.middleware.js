@@ -1,9 +1,8 @@
 import jwt from "jsonwebtoken";
-import { User } from "../models/User";
-import { AppError } from "../utils/AppError";
-import { asyncHandler } from "../utils/asyncHandler";
+import { User } from "../models/User.js";
+import { AppError } from "../utils/AppError.js";
 
-export const authenticate = asyncHandler(async (req, res, next) => {
+export const authenticate = async (req, res, next) => {
   let token;
   if (
     req.headers.authorization &&
@@ -27,4 +26,4 @@ export const authenticate = asyncHandler(async (req, res, next) => {
   } catch (error) {
     return next(new AppError("Not authorized to access this route", 401));
   }
-});
+};

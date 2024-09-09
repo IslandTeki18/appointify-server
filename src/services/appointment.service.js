@@ -1,6 +1,6 @@
-import Appointment from "../models/appointment.model";
-import EventType from "../models/eventType.model";
-import { AppError } from "../utils/AppError";
+import { Appointment } from "../models/Appointment.js";
+import { EventType } from "../models/EventType.js";
+import { AppError } from "../utils/AppError.js";
 
 const createAppointment = async (req, res, next) => {
   try {

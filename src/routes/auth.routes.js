@@ -1,9 +1,9 @@
 import express from "express";
-import { register, login, logout } from "../controllers/auth.controller";
+import { register, login, logout } from "../services/auth.service.js";
 import {
-  validateRegistration,
   validateLogin,
-} from "../validators/auth.validator";
+  validateRegistration,
+} from "../middleware/validation.middleware.js";
 
 const router = express.Router();
 

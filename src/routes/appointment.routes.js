@@ -3,9 +3,9 @@ import {
   createAppointment,
   getAppointments,
   cancelAppointment,
-} from "../controllers/appointment.controller";
-import { validateAppointment } from "../validators/appointment.validator";
-import { authenticate } from "../middlewares/auth.middleware";
+} from "../services/appointment.service.js";
+import { validateAppointment } from "../middleware/validation.middleware.js";
+import { authenticate } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 

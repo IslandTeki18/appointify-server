@@ -1,5 +1,5 @@
-import EventType from "../models/eventType.model";
-import { AppError } from "../utils/AppError";
+import { EventType } from "../models/EventType.js";
+import { AppError } from "../utils/AppError.js";
 
 const createEventType = async (req, res) => {
   try {
