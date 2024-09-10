@@ -62,7 +62,7 @@ const deleteEventType = async (req, res, next) => {
     if (!eventType) {
       return next(new AppError("Event type not found", 404));
     }
-    res.status(204).json(null);
+    res.status(204).json({ message: "Event type deleted" });
   } catch (error) {
     next(error);
   }
