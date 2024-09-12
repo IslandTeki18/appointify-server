@@ -74,10 +74,34 @@ const getAvailableDates = async (req, res, next) => {
     return next(new AppError("Event type not found", 404));
   }
 
-  const startDate = new Date(req.query.start) || new Date();
-  const endDate =
-    new Date(req.query.end) ||
-    new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+  let startDate;
+  let endDate;
+
+  // Parse start date
+  if (req.query.start && typeof req.query.start === "string") {
+    startDate = new Date(req.query.start);
+    if (isNaN(startDate.getTime())) {
+      return next(new AppError("Invalid start date", 400));
+    }
+  } else {
+    startDate = new Date(); // Default to current date if not provided
+  }
+
+  // Parse end date
+  if (req.query.end && typeof req.query.end === "string") {
+    endDate = new Date(req.query.end);
+    if (isNaN(endDate.getTime())) {
+      return next(new AppError("Invalid end date", 400));
+    }
+  } else {
+    // Default to 30 days from start date if not provided
+    endDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+  }
+
+  // Ensure startDate is not after endDate
+  if (startDate > endDate) {
+    return next(new AppError("Start date cannot be after end date", 400));
+  }
 
   const availabilityData = await generateAvailabilityData(
     eventType,
