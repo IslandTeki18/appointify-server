@@ -1,4 +1,5 @@
 import { EventType } from "../models/EventType.js";
+import { Appointment } from "../models/Appointment.js";
 import { AppError } from "../utils/AppError.js";
 
 const createEventType = async (req, res) => {
@@ -15,7 +16,7 @@ const createEventType = async (req, res) => {
 
 const getEventTypes = async (req, res) => {
   try {
-    const eventTypes = await EventType.find({ user: req.user.id });
+    const eventTypes = await EventType.find({});
     res.json(eventTypes);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -26,7 +27,6 @@ const getEventType = async (req, res, next) => {
   try {
     const eventType = await EventType.findOne({
       _id: req.params.id,
-      user: req.user.id,
     });
     if (!eventType) {
       return next(new AppError("Event type not found", 404));
@@ -68,10 +68,137 @@ const deleteEventType = async (req, res, next) => {
   }
 };
 
+const getAvailableDates = async (req, res, next) => {
+  const eventType = await EventType.findById(req.params.id);
+  if (!eventType) {
+    return next(new AppError("Event type not found", 404));
+  }
+
+  const startDate = new Date(req.query.start) || new Date();
+  const endDate =
+    new Date(req.query.end) ||
+    new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  const availabilityData = await generateAvailabilityData(
+    eventType,
+    startDate,
+    endDate
+  );
+  res.json(availabilityData);
+};
+
+const getAvailableSlotsForDate = async (req, res, next) => {
+  const eventType = await EventType.findById(req.params.id);
+  if (!eventType) {
+    return next(new AppError("Event type not found", 404));
+  }
+
+  const date = new Date(req.query.date);
+  if (isNaN(date.getTime())) {
+    return next(new AppError("Invalid date", 400));
+  }
+
+  const availableSlots = await generateAvailableSlotsForDate(eventType, date);
+  res.json(availableSlots);
+};
+
+async function generateAvailabilityData(eventType, startDate, endDate) {
+  const availableDates = [];
+  const scheduledTimes = [];
+
+  const appointments = await Appointment.find({
+    eventType: eventType._id,
+    startTime: { $gte: startDate, $lt: endDate },
+    status: "scheduled",
+  });
+
+  for (
+    let date = new Date(startDate);
+    date < endDate;
+    date.setDate(date.getDate() + 1)
+  ) {
+    const dayOfWeek = date.getDay();
+    if (eventType.availability.days.includes(dayOfWeek)) {
+      const slots = await generateAvailableSlotsForDate(
+        eventType,
+        date,
+        appointments
+      );
+      if (slots.length > 0) {
+        availableDates.push(date.toISOString().split("T")[0]);
+      }
+    }
+
+    // Add scheduled times for this date
+    const dateScheduled = appointments.filter(
+      (apt) =>
+        apt.startTime.toISOString().split("T")[0] ===
+        date.toISOString().split("T")[0]
+    );
+    if (dateScheduled.length > 0) {
+      scheduledTimes.push({
+        date: date.toISOString().split("T")[0],
+        times: dateScheduled.map((apt) => ({
+          start: apt.startTime.toISOString(),
+          end: apt.endTime.toISOString(),
+        })),
+      });
+    }
+  }
+
+  return { availableDates, scheduledTimes };
+}
+
+async function generateAvailableSlotsForDate(eventType, date) {
+  const availableSlots = [];
+  const dayStart = new Date(date);
+  const dayEnd = new Date(date);
+
+  const [startHour, startMinute] = eventType.availability.startTime
+    .split(":")
+    .map(Number);
+  const [endHour, endMinute] = eventType.availability.endTime
+    .split(":")
+    .map(Number);
+
+  dayStart.setHours(startHour, startMinute, 0, 0);
+  dayEnd.setHours(endHour, endMinute, 0, 0);
+
+  const bookedAppointments = await Appointment.find({
+    eventType: eventType._id,
+    startTime: { $gte: dayStart, $lt: dayEnd },
+    status: "scheduled",
+  });
+
+  for (
+    let time = dayStart;
+    time < dayEnd;
+    time.setMinutes(time.getMinutes() + eventType.duration)
+  ) {
+    const slotEnd = new Date(time.getTime() + eventType.duration * 60000);
+    const isBooked = bookedAppointments.some(
+      (apt) =>
+        (apt.startTime <= time && apt.endTime > time) ||
+        (apt.startTime < slotEnd && apt.endTime >= slotEnd)
+    );
+
+    if (!isBooked) {
+      availableSlots.push({
+        start: time.toISOString(),
+        end: slotEnd.toISOString(),
+      });
+    }
+  }
+
+  return availableSlots;
+}
+
 export {
   createEventType,
   getEventTypes,
   getEventType,
+  getAvailableDates,
+  getAvailableSlotsForDate,
   updateEventType,
   deleteEventType,
 };

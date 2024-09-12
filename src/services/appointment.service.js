@@ -12,6 +12,21 @@ const createAppointment = async (req, res, next) => {
     const endTime = new Date(
       new Date(startTime).getTime() + eventType.duration * 60000
     );
+
+    // Check if the slot is still available
+    const conflictingAppointment = await Appointment.findOne({
+      eventType: eventTypeId,
+      $or: [
+        { startTime: { $lt: endTime, $gte: startTime } },
+        { endTime: { $gt: startTime, $lte: endTime } },
+      ],
+      status: "scheduled",
+    });
+
+    if (conflictingAppointment) {
+      return next(new AppError("This time slot is no longer available", 400));
+    }
+
     const appointment = await Appointment.create({
       eventType: eventTypeId,
       host: eventType.user,
