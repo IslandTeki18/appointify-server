@@ -5,20 +5,26 @@ import { AppError } from "../utils/AppError.js";
 const createAppointment = async (req, res, next) => {
   try {
     const { eventTypeId, startTime, attendee } = req.body;
+    console.log("Received startTime:", startTime); // Debug log
+
     const eventType = await EventType.findById(eventTypeId);
     if (!eventType) {
       return next(new AppError("Event type not found", 404));
     }
-    const endTime = new Date(
-      new Date(startTime).getTime() + eventType.duration * 60000
-    );
+
+    // Ensure startTime is treated as UTC
+    const startDate = new Date(startTime);
+    console.log("Parsed startDate:", startDate); // Debug log
+
+    const endDate = new Date(startDate.getTime() + eventType.duration * 60000);
+    console.log("Calculated endDate:", endDate); // Debug log
 
     // Check if the slot is still available
     const conflictingAppointment = await Appointment.findOne({
       eventType: eventTypeId,
       $or: [
-        { startTime: { $lt: endTime, $gte: startTime } },
-        { endTime: { $gt: startTime, $lte: endTime } },
+        { startTime: { $lt: endDate, $gte: startDate } },
+        { endTime: { $gt: startDate, $lte: endDate } },
       ],
       status: "scheduled",
     });
@@ -31,11 +37,15 @@ const createAppointment = async (req, res, next) => {
       eventType: eventTypeId,
       host: eventType.user,
       attendee,
-      startTime,
-      endTime,
+      startTime: startDate,
+      endTime: endDate,
     });
+
+    console.log("Created appointment:", appointment); // Debug log
+
     res.status(201).json(appointment);
   } catch (error) {
+    console.error("Error in createAppointment:", error); // Debug log
     next(error);
   }
 };

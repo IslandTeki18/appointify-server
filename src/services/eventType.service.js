@@ -116,8 +116,15 @@ const getAvailableSlotsForDate = async (req, res, next) => {
   if (!eventType) {
     return next(new AppError("Event type not found", 404));
   }
+  // Parse the date string and create a Date object in UTC
+  const dateString = req.query.date; // Expecting format: "YYYY-MM-DD"
+  const [year, month, day] = dateString.split("-").map(Number);
 
-  const date = new Date(req.query.date);
+  // Create date object (Note: month is 0-indexed in JavaScript Date)
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  console.log(date); // This should now log the correct date
+
   if (isNaN(date.getTime())) {
     return next(new AppError("Invalid date", 400));
   }
@@ -141,15 +148,16 @@ async function generateAvailabilityData(eventType, startDate, endDate) {
     date < endDate;
     date.setDate(date.getDate() + 1)
   ) {
-    const dayOfWeek = date.getDay();
+    const currentDate = new Date(date); // Create a new Date object to avoid modifying the loop variable
+    const dayOfWeek = currentDate.getDay();
     if (eventType.availability.days.includes(dayOfWeek)) {
       const slots = await generateAvailableSlotsForDate(
         eventType,
-        date,
+        currentDate,
         appointments
       );
       if (slots.length > 0) {
-        availableDates.push(date.toISOString().split("T")[0]);
+        availableDates.push(currentDate.toISOString().split("T")[0]);
       }
     }
 
@@ -157,11 +165,11 @@ async function generateAvailabilityData(eventType, startDate, endDate) {
     const dateScheduled = appointments.filter(
       (apt) =>
         apt.startTime.toISOString().split("T")[0] ===
-        date.toISOString().split("T")[0]
+        currentDate.toISOString().split("T")[0]
     );
     if (dateScheduled.length > 0) {
       scheduledTimes.push({
-        date: date.toISOString().split("T")[0],
+        date: currentDate.toISOString().split("T")[0],
         times: dateScheduled.map((apt) => ({
           start: apt.startTime.toISOString(),
           end: apt.endTime.toISOString(),
@@ -195,7 +203,7 @@ async function generateAvailableSlotsForDate(eventType, date) {
   });
 
   for (
-    let time = dayStart;
+    let time = new Date(dayStart);
     time < dayEnd;
     time.setMinutes(time.getMinutes() + eventType.duration)
   ) {
