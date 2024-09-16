@@ -1,30 +1,29 @@
 import { Appointment } from "../models/Appointment.js";
 import { EventType } from "../models/EventType.js";
 import { AppError } from "../utils/AppError.js";
+import moment from "moment-timezone";
 
 const createAppointment = async (req, res, next) => {
   try {
-    const { eventTypeId, startTime, attendee } = req.body;
-    console.log("Received startTime:", startTime); // Debug log
+    const { eventTypeId, startTime, timezone, attendee } = req.body;
 
     const eventType = await EventType.findById(eventTypeId);
     if (!eventType) {
       return next(new AppError("Event type not found", 404));
     }
 
-    // Ensure startTime is treated as UTC
-    const startDate = new Date(startTime);
-    console.log("Parsed startDate:", startDate); // Debug log
-
-    const endDate = new Date(startDate.getTime() + eventType.duration * 60000);
-    console.log("Calculated endDate:", endDate); // Debug log
+    // Convert startTime to UTC
+    const startDateUTC = moment.tz(startTime, timezone).utc();
+    const endDateUTC = startDateUTC.clone().add(eventType.duration, "minutes");
 
     // Check if the slot is still available
     const conflictingAppointment = await Appointment.findOne({
       eventType: eventTypeId,
       $or: [
-        { startTime: { $lt: endDate, $gte: startDate } },
-        { endTime: { $gt: startDate, $lte: endDate } },
+        {
+          startTime: { $lt: endDateUTC.toDate(), $gte: startDateUTC.toDate() },
+        },
+        { endTime: { $gt: startDateUTC.toDate(), $lte: endDateUTC.toDate() } },
       ],
       status: "scheduled",
     });
@@ -37,11 +36,11 @@ const createAppointment = async (req, res, next) => {
       eventType: eventTypeId,
       host: eventType.user,
       attendee,
-      startTime: startDate,
-      endTime: endDate,
+      startTime: startDateUTC.toDate(),
+      endTime: endDateUTC.toDate(),
+      timezone: timezone,
     });
 
-    console.log("Created appointment:", appointment); // Debug log
 
     res.status(201).json(appointment);
   } catch (error) {

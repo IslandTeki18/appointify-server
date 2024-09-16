@@ -51,6 +51,7 @@ export const validateAppointment = validateRequest(
   Joi.object({
     eventTypeId: Joi.string().required(),
     startTime: Joi.date().iso().required(),
+    timezone: Joi.string().required(),
     attendee: Joi.object({
       name: Joi.string().required(),
       email: Joi.string().email().required(),

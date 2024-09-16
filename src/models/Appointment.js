@@ -13,6 +13,7 @@ const appointmentSchema = new Schema({
   },
   startTime: { type: Date, required: true },
   endTime: { type: Date, required: true },
+  timezone: { type: String, required: true },
   status: {
     type: String,
     enum: ["scheduled", "cancelled"],
