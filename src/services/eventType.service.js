@@ -1,6 +1,7 @@
 import { EventType } from "../models/EventType.js";
 import { Appointment } from "../models/Appointment.js";
 import { AppError } from "../utils/AppError.js";
+import moment from "moment-timezone";
 
 const createEventType = async (req, res) => {
   try {
@@ -74,39 +75,40 @@ const getAvailableDates = async (req, res, next) => {
     return next(new AppError("Event type not found", 404));
   }
 
-  let startDate;
-  let endDate;
+  const timezone = req.query.timezone || "UTC";
+  let startDate, endDate;
 
   // Parse start date
   if (req.query.start && typeof req.query.start === "string") {
-    startDate = new Date(req.query.start);
-    if (isNaN(startDate.getTime())) {
+    startDate = moment.tz(req.query.start, timezone);
+    if (!startDate.isValid()) {
       return next(new AppError("Invalid start date", 400));
     }
   } else {
-    startDate = new Date(); // Default to current date if not provided
+    startDate = moment.tz(timezone); // Default to current date in the given timezone
   }
 
   // Parse end date
   if (req.query.end && typeof req.query.end === "string") {
-    endDate = new Date(req.query.end);
-    if (isNaN(endDate.getTime())) {
+    endDate = moment.tz(req.query.end, timezone);
+    if (!endDate.isValid()) {
       return next(new AppError("Invalid end date", 400));
     }
   } else {
     // Default to 30 days from start date if not provided
-    endDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+    endDate = startDate.clone().add(30, "days");
   }
 
   // Ensure startDate is not after endDate
-  if (startDate > endDate) {
+  if (startDate.isAfter(endDate)) {
     return next(new AppError("Start date cannot be after end date", 400));
   }
 
   const availabilityData = await generateAvailabilityData(
     eventType,
-    startDate,
-    endDate
+    startDate.toDate(),
+    endDate.toDate(),
+    timezone
   );
   res.json(availabilityData);
 };
@@ -116,24 +118,30 @@ const getAvailableSlotsForDate = async (req, res, next) => {
   if (!eventType) {
     return next(new AppError("Event type not found", 404));
   }
-  // Parse the date string and create a Date object in UTC
-  const dateString = req.query.date; // Expecting format: "YYYY-MM-DD"
-  const [year, month, day] = dateString.split("-").map(Number);
+  const dateString = req.query.date;
+  const timezone = req.query.timezone || "UTC";
 
-  // Create date object (Note: month is 0-indexed in JavaScript Date)
-  const date = new Date(Date.UTC(year, month - 1, day));
+  // Create a moment object in the user's timezone
+  const userDate = moment.tz(dateString, timezone).startOf("day");
 
-  console.log(date); // This should now log the correct date
-
-  if (isNaN(date.getTime())) {
-    return next(new AppError("Invalid date", 400));
+  if (!userDate.isValid()) {
+    return next(new AppError("Invalid date or timezone", 400));
   }
 
-  const availableSlots = await generateAvailableSlotsForDate(eventType, date);
+  const availableSlots = await generateAvailableSlotsForDate(
+    eventType,
+    userDate,
+    timezone
+  );
   res.json(availableSlots);
 };
 
-async function generateAvailabilityData(eventType, startDate, endDate) {
+async function generateAvailabilityData(
+  eventType,
+  startDate,
+  endDate,
+  timezone
+) {
   const availableDates = [];
   const scheduledTimes = [];
 
@@ -144,35 +152,33 @@ async function generateAvailabilityData(eventType, startDate, endDate) {
   });
 
   for (
-    let date = new Date(startDate);
-    date < endDate;
-    date.setDate(date.getDate() + 1)
+    let date = moment(startDate).tz(timezone);
+    date.isBefore(moment(endDate).tz(timezone));
+    date.add(1, "days")
   ) {
-    const currentDate = new Date(date); // Create a new Date object to avoid modifying the loop variable
-    const dayOfWeek = currentDate.getDay();
+    const dayOfWeek = date.day();
     if (eventType.availability.days.includes(dayOfWeek)) {
       const slots = await generateAvailableSlotsForDate(
         eventType,
-        currentDate,
-        appointments
+        date.clone(),
+        timezone
       );
       if (slots.length > 0) {
-        availableDates.push(currentDate.toISOString().split("T")[0]);
+        availableDates.push(date.format("YYYY-MM-DD"));
       }
     }
 
-    // Add scheduled times for this date
     const dateScheduled = appointments.filter(
       (apt) =>
-        apt.startTime.toISOString().split("T")[0] ===
-        currentDate.toISOString().split("T")[0]
+        moment(apt.startTime).tz(timezone).format("YYYY-MM-DD") ===
+        date.format("YYYY-MM-DD")
     );
     if (dateScheduled.length > 0) {
       scheduledTimes.push({
-        date: currentDate.toISOString().split("T")[0],
+        date: date.format("YYYY-MM-DD"),
         times: dateScheduled.map((apt) => ({
-          start: apt.startTime.toISOString(),
-          end: apt.endTime.toISOString(),
+          start: moment(apt.startTime).tz(timezone).format(),
+          end: moment(apt.endTime).tz(timezone).format(),
         })),
       });
     }
@@ -181,10 +187,8 @@ async function generateAvailabilityData(eventType, startDate, endDate) {
   return { availableDates, scheduledTimes };
 }
 
-async function generateAvailableSlotsForDate(eventType, date) {
+async function generateAvailableSlotsForDate(eventType, userDate, timezone) {
   const availableSlots = [];
-  const dayStart = new Date(date);
-  const dayEnd = new Date(date);
 
   const [startHour, startMinute] = eventType.availability.startTime
     .split(":")
@@ -193,31 +197,42 @@ async function generateAvailableSlotsForDate(eventType, date) {
     .split(":")
     .map(Number);
 
-  dayStart.setHours(startHour, startMinute, 0, 0);
-  dayEnd.setHours(endHour, endMinute, 0, 0);
+  // Set start and end times in the user's timezone
+  const userDayStart = userDate
+    .clone()
+    .set({ hour: startHour, minute: startMinute, second: 0, millisecond: 0 });
+  const userDayEnd = userDate
+    .clone()
+    .set({ hour: endHour, minute: endMinute, second: 0, millisecond: 0 });
+
+  // Convert to UTC for database queries
+  const utcDayStart = userDayStart.clone().tz("UTC");
+  const utcDayEnd = userDayEnd.clone().tz("UTC");
 
   const bookedAppointments = await Appointment.find({
     eventType: eventType._id,
-    startTime: { $gte: dayStart, $lt: dayEnd },
+    startTime: { $gte: utcDayStart.toDate(), $lt: utcDayEnd.toDate() },
     status: "scheduled",
   });
 
   for (
-    let time = new Date(dayStart);
-    time < dayEnd;
-    time.setMinutes(time.getMinutes() + eventType.duration)
+    let time = moment(userDayStart);
+    time.isBefore(userDayEnd);
+    time.add(eventType.duration, "minutes")
   ) {
-    const slotEnd = new Date(time.getTime() + eventType.duration * 60000);
+    const slotEnd = time.clone().add(eventType.duration, "minutes");
     const isBooked = bookedAppointments.some(
       (apt) =>
-        (apt.startTime <= time && apt.endTime > time) ||
-        (apt.startTime < slotEnd && apt.endTime >= slotEnd)
+        (moment(apt.startTime).tz(timezone).isSameOrBefore(time) &&
+          moment(apt.endTime).tz(timezone).isAfter(time)) ||
+        (moment(apt.startTime).tz(timezone).isBefore(slotEnd) &&
+          moment(apt.endTime).tz(timezone).isSameOrAfter(slotEnd))
     );
 
     if (!isBooked) {
       availableSlots.push({
-        start: time.toISOString(),
-        end: slotEnd.toISOString(),
+        start: time.format(),
+        end: slotEnd.format(),
       });
     }
   }
